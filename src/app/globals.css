@@ -1,0 +1,118 @@
+@import "tailwindcss";
+
+@theme {
+  /* Silverback monochrome studio palette */
+  --color-obsidian: #0a0a0b;
+  --color-onyx: #111113;
+  --color-graphite: #1b1c1f;
+  --color-line: #2c2d32;
+  --color-steel: #3d3f45;
+  --color-silver: #d2d5da;
+  --color-mist: #a1a6ad;
+  --color-paper: #ffffff;
+  --color-fog: #f4f4f5;
+  --color-ink: #0b0b0c;
+  --color-slate: #4f525a;
+  --color-whatsapp: #25d366;
+  --color-whatsapp-dark: #1fb457;
+  --color-danger: #ff8a8a;
+
+  --font-display: var(--font-barlow-condensed), "Arial Narrow", Arial, sans-serif;
+  /* Native system UI stack for body copy: zero font bytes, instant paint. */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-padding-top: 5.5rem;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  body {
+    background: var(--color-obsidian);
+    color: var(--color-silver);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-paper);
+    outline-offset: 3px;
+  }
+
+  .on-light :focus-visible {
+    outline-color: var(--color-ink);
+  }
+
+  ::selection {
+    background: var(--color-paper);
+    color: var(--color-ink);
+  }
+}
+
+/* Ultra-bold condensed uppercase display type (brand headline voice). */
+@utility display {
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: -0.005em;
+  line-height: 0.92;
+}
+
+@utility eyebrow {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pill CTAs */
+@utility btn {
+  display: inline-flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  padding-inline: 1.5rem;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    background-color 180ms var(--ease-out-quint),
+    color 180ms var(--ease-out-quint),
+    border-color 180ms var(--ease-out-quint),
+    transform 120ms var(--ease-out-quint);
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
