@@ -15,14 +15,17 @@ const TRACKING_HOSTS = [
   "https://www.facebook.com",
 ].join(" ");
 
+/** Elfsight Google Reviews badge: script, its API and the review avatars/assets it loads. */
+const ELFSIGHT_HOSTS = "https://elfsightcdn.com https://*.elfsightcdn.com https://*.elfsight.com";
+
 const csp = [
   "default-src 'self'",
   // 'unsafe-inline' is required for Next.js static/ISR pages and the GTM/Pixel bootstraps.
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} ${TRACKING_HOSTS}`,
-  `connect-src 'self' ${TRACKING_HOSTS} https://*.supabase.co${isDev ? " ws:" : ""}`,
-  `img-src 'self' data: blob: ${TRACKING_HOSTS}`,
-  "style-src 'self' 'unsafe-inline'",
-  "font-src 'self' data:",
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} ${TRACKING_HOSTS} ${ELFSIGHT_HOSTS}`,
+  `connect-src 'self' ${TRACKING_HOSTS} ${ELFSIGHT_HOSTS} https://*.supabase.co${isDev ? " ws:" : ""}`,
+  `img-src 'self' data: blob: ${TRACKING_HOSTS} ${ELFSIGHT_HOSTS} https://*.googleusercontent.com`,
+  `style-src 'self' 'unsafe-inline' ${ELFSIGHT_HOSTS}`,
+  `font-src 'self' data: ${ELFSIGHT_HOSTS}`,
   `frame-src https://*.googletagmanager.com https://*.doubleclick.net https://www.facebook.com`,
   "object-src 'none'",
   "base-uri 'self'",

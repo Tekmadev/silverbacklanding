@@ -46,20 +46,12 @@ export interface BeforeAfterSet {
 export const BEFORE_AFTER_SETS: BeforeAfterSet[] = [];
 
 /**
- * Verbatim Google reviews (copy text and first name exactly as posted).
- * Leave empty to show the aggregate 5.0 ★ card only. Never write reviews.
+ * Round emblem shown to the left of the "Silverback / Auto Detailing" wordmark in the nav
+ * and footer. Set to null to show the wordmark alone. next/image serves small resized copies,
+ * so the large source file is never sent to visitors.
  */
-export interface Review {
-  name: string;
-  text: string;
-  /** e.g. "2 weeks ago" or "Oct 2026" (as shown on Google). */
-  when?: string;
-}
-
-export const REVIEWS: Review[] = [];
-
-/**
- * Official logo. Set to e.g. { src: "/images/logo.webp", width: 220, height: 64 }
- * once the file is in /public/images. Until then a typeset wordmark is shown.
- */
-export const LOGO: { src: string; width: number; height: number } | null = null;
+export const LOGO: { src: string; width: number; height: number } | null = {
+  src: "/images/silverbacklogo.png",
+  width: 895,
+  height: 895,
+};

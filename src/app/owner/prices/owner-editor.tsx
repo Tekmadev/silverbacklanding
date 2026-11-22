@@ -2,6 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { parseRating, parseReviewCount } from "@/lib/review-settings";
 import type { PromoKey, ServicePricing } from "@/lib/types";
 
 const KEY_STORAGE = "sb_owner_key";
@@ -47,8 +48,20 @@ function toEditable(s: ServicePricing): EditableRow {
   };
 }
 
+interface ReviewFields {
+  rating: string;
+  count: string;
+}
+
 type OwnerDataResult =
-  | { ok: true; services: ServicePricing[]; promo: PromoKey }
+  | {
+      ok: true;
+      services: ServicePricing[];
+      promo: PromoKey;
+      rating: number;
+      reviewCount: number;
+      googleLive: boolean;
+    }
   | { ok: false; unauthorized: boolean; message: string };
 
 /** Pure network call with no React state, so it is safe to start from an effect. */
@@ -62,7 +75,14 @@ async function requestOwnerData(candidate: string): Promise<OwnerDataResult> {
     if (!res.ok) {
       return { ok: false, unauthorized: res.status === 401, message: body.error ?? "Could not load prices." };
     }
-    return { ok: true, services: body.services, promo: body.promo };
+    return {
+      ok: true,
+      services: body.services,
+      promo: body.promo,
+      rating: body.rating,
+      reviewCount: body.reviewCount,
+      googleLive: body.googleLive === true,
+    };
   } catch {
     return { ok: false, unauthorized: false, message: "Network error. Check your connection and try again." };
   }
@@ -85,6 +105,9 @@ export function OwnerEditor() {
   const [original, setOriginal] = useState<Record<string, string>>({});
   const [promo, setPromo] = useState<PromoKey>("none");
   const [originalPromo, setOriginalPromo] = useState<PromoKey>("none");
+  const [reviewFields, setReviewFields] = useState<ReviewFields>({ rating: "", count: "" });
+  const [originalReviews, setOriginalReviews] = useState<ReviewFields>({ rating: "", count: "" });
+  const [googleLive, setGoogleLive] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
 
@@ -102,6 +125,10 @@ export function OwnerEditor() {
     setOriginal(Object.fromEntries(editable.map((r) => [r.slug, rowKey(r)])));
     setPromo(result.promo);
     setOriginalPromo(result.promo);
+    const fields = { rating: Number(result.rating).toFixed(1), count: String(result.reviewCount) };
+    setReviewFields(fields);
+    setOriginalReviews(fields);
+    setGoogleLive(result.googleLive);
     setLoad({ kind: "ready" });
   }, []);
 
@@ -127,7 +154,9 @@ export function OwnerEditor() {
     () => new Set(rows.filter((r) => original[r.slug] !== rowKey(r)).map((r) => r.slug)),
     [rows, original],
   );
-  const isDirty = dirtySlugs.size > 0 || promo !== originalPromo;
+  const reviewsDirty =
+    reviewFields.rating !== originalReviews.rating || reviewFields.count !== originalReviews.count;
+  const isDirty = dirtySlugs.size > 0 || promo !== originalPromo || reviewsDirty;
 
   useEffect(() => {
     if (!isDirty) return;
@@ -153,7 +182,18 @@ export function OwnerEditor() {
       setNotice({ tone: "error", text: `"${badNumber.name}" price must be a plain number, e.g. 2499.` });
       return;
     }
+    const rating = parseRating(reviewFields.rating);
+    if (rating === null) {
+      setNotice({ tone: "error", text: "Google rating must be a number from 1.0 to 5.0, e.g. 4.9." });
+      return;
+    }
+    const reviewCount = parseReviewCount(reviewFields.count);
+    if (reviewCount === null) {
+      setNotice({ tone: "error", text: "Number of reviews must be a whole number of at least 1, e.g. 45." });
+      return;
+    }
 
+    const sentReviews = reviewFields;
     setSaving(true);
     setNotice(null);
     try {
@@ -162,6 +202,8 @@ export function OwnerEditor() {
         headers: { "content-type": "application/json", "x-owner-key": key },
         body: JSON.stringify({
           promo,
+          rating,
+          reviewCount,
           services: rows.map((r) => ({
             slug: r.slug,
             display_price: r.display_price,
@@ -178,7 +220,9 @@ export function OwnerEditor() {
       }
       setOriginal(Object.fromEntries(rows.map((r) => [r.slug, rowKey(r)])));
       setOriginalPromo(promo);
-      setNotice({ tone: "ok", text: "Saved. The live site shows the new prices on the next page load." });
+      // Like prices: only move the "saved" marker, so anything typed during the save stays dirty.
+      setOriginalReviews(sentReviews);
+      setNotice({ tone: "ok", text: "Saved. The live site shows the changes on the next page load." });
     } catch {
       setNotice({ tone: "error", text: "Network error. Nothing was saved. Try again." });
     } finally {
@@ -247,6 +291,45 @@ export function OwnerEditor() {
               <span className={`text-xs ${promo === option.value ? "text-slate" : "text-mist"}`}>{option.hint}</span>
             </label>
           ))}
+        </div>
+      </fieldset>
+
+      <fieldset className="rounded-2xl border border-line bg-onyx p-5" aria-describedby="reviews-help">
+        <legend className="eyebrow px-1 text-mist">Google reviews</legend>
+        <p id="reviews-help" className="mt-1 text-sm text-mist">
+          {googleLive
+            ? "Google is connected, so the site shows the live numbers. These are only used if Google is down."
+            : "Copy these from the Google Business Profile. They update the header, hero, reviews section and Google search data."}
+        </p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="text-xs text-mist">
+            Star rating (1.0 to 5.0)
+            <input
+              value={reviewFields.rating}
+              onChange={(e) => {
+                setReviewFields((f) => ({ ...f, rating: e.target.value.replace(",", ".").replace(/[^\d.]/g, "") }));
+                setNotice(null);
+              }}
+              inputMode="decimal"
+              placeholder="5.0"
+              maxLength={3}
+              className="tabular mt-1 h-11 w-full rounded-lg border border-steel bg-obsidian px-3 text-base text-paper placeholder:text-mist focus:border-paper focus:outline-none"
+            />
+          </label>
+          <label className="text-xs text-mist">
+            Number of reviews
+            <input
+              value={reviewFields.count}
+              onChange={(e) => {
+                setReviewFields((f) => ({ ...f, count: e.target.value.replace(/\D/g, "") }));
+                setNotice(null);
+              }}
+              inputMode="numeric"
+              placeholder="45"
+              maxLength={7}
+              className="tabular mt-1 h-11 w-full rounded-lg border border-steel bg-obsidian px-3 text-base text-paper placeholder:text-mist focus:border-paper focus:outline-none"
+            />
+          </label>
         </div>
       </fieldset>
 

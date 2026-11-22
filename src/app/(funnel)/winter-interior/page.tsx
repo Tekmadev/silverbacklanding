@@ -15,14 +15,17 @@ import {
 import { ServiceCard } from "@/components/service-card";
 import { FAQ_CORE, FAQ_INTERIOR } from "@/config/faq";
 import { HERO_INTERIOR } from "@/config/media";
+import { getGoogleReviews } from "@/lib/google-reviews";
 import { getSiteData } from "@/lib/pricing";
 import { findService, formatCad, minPrice, pickServices } from "@/lib/pricing-utils";
 import { faqSchema } from "@/lib/schema";
 
-export const metadata: Metadata = {
+export async function generateMetadata(): Promise<Metadata> {
+  const { rating, count } = await getGoogleReviews();
+  return {
   title: "Winter Interior Deep Clean & Salt Removal in Burlington from $279",
   description:
-    "Salt-crusted carpets, coffee & kid stains, stale odours, lease returns. Steam shampoo + hot-water extraction in a heated indoor bay. Same-day, from $279 + HST. 5.0★ (44 Google reviews).",
+    `Salt-crusted carpets, coffee & kid stains, stale odours, lease returns. Steam shampoo + hot-water extraction in a heated indoor bay. Same-day, from $279 + HST. ${rating.toFixed(1)}★ (${count} Google reviews).`,
   alternates: { canonical: "/winter-interior" },
   openGraph: {
     title: "Winter Interior Reset from $279 + HST | Silverback Auto Detailing",
@@ -30,6 +33,7 @@ export const metadata: Metadata = {
     images: [{ url: HERO_INTERIOR.src, width: HERO_INTERIOR.width, height: HERO_INTERIOR.height, alt: HERO_INTERIOR.alt }],
   },
 };
+}
 
 const PACKAGE_SLUGS = ["interior_deep_clean", "silver_deep_clean", "gold_correct_protect"] as const;
 const FAQ = [...FAQ_INTERIOR, ...FAQ_CORE];

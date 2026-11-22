@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     template: "%s | Silverback Auto Detailing",
   },
   description:
-    "Studio detailing, PPF, ceramic coating & window tint in a heated indoor bay in Burlington, ON. 5.0★ from 44 Google reviews. Upfront CAD + HST pricing.",
+    "Studio detailing, PPF, ceramic coating & window tint in a heated indoor bay in Burlington, ON. Upfront CAD + HST pricing, confirmed before work begins.",
   applicationName: SITE.name,
   openGraph: {
     type: "website",

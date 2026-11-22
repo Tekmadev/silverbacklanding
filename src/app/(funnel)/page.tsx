@@ -8,17 +8,20 @@ import { FaqSection, ProcessStrip, ReviewsSection, SectionHeading } from "@/comp
 import { FAQ_CORE } from "@/config/faq";
 import { HERO_PAINT } from "@/config/media";
 import { SITE } from "@/config/site";
+import { getGoogleReviews } from "@/lib/google-reviews";
 import { getSiteData } from "@/lib/pricing";
 import { formatCad, minPrice } from "@/lib/pricing-utils";
 import { faqSchema } from "@/lib/schema";
 
-export const metadata: Metadata = {
-  title: { absolute: "Silverback Auto Detailing | Burlington Detailing, PPF, Ceramic & Tint" },
-  description:
-    "Burlington's heated indoor detailing studio. Winter interior resets from $279, window tint $349, Full Front PPF + Ceramic from $2,499 + HST. 5.0★ from 44 Google reviews.",
-  alternates: { canonical: "/" },
-  openGraph: { url: "/" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { rating, count } = await getGoogleReviews();
+  return {
+    title: { absolute: "Silverback Auto Detailing | Burlington Detailing, PPF, Ceramic & Tint" },
+    description: `Burlington's heated indoor detailing studio. Winter interior resets from $279, window tint $349, Full Front PPF + Ceramic from $2,499 + HST. ${rating.toFixed(1)}★ from ${count} Google reviews.`,
+    alternates: { canonical: "/" },
+    openGraph: { url: "/" },
+  };
+}
 
 const INTERIOR_SLUGS = ["interior_deep_clean", "silver_deep_clean", "gold_correct_protect"] as const;
 const PROTECTION_SLUGS = ["window_tint", "ppf_ceramic_bundle", "ppf_full_front", "ceramic_5yr", "ceramic_lifetime"] as const;

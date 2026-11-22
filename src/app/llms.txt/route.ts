@@ -1,5 +1,6 @@
 import { FAQ_CORE, FAQ_INTERIOR, FAQ_PROTECTION } from "@/config/faq";
 import { SITE } from "@/config/site";
+import { getGoogleReviews } from "@/lib/google-reviews";
 import { getSiteData } from "@/lib/pricing";
 
 /**
@@ -7,7 +8,7 @@ import { getSiteData } from "@/lib/pricing";
  * Served from the same cached pricing data as the pages, so prices never drift.
  */
 export async function GET() {
-  const { services } = await getSiteData();
+  const [{ services }, reviews] = await Promise.all([getSiteData(), getGoogleReviews()]);
   const active = services.filter((s) => s.is_active);
 
   const priceLines = active.map(
@@ -17,7 +18,7 @@ export async function GET() {
 
   const body = `# ${SITE.name}
 
-> Studio auto detailing, paint protection film (PPF), ceramic coating, paint correction and window tint in a heated indoor bay in Burlington, Ontario, Canada. Rated ${SITE.rating.value.toFixed(1)}/5 from ${SITE.rating.count} Google reviews. All prices in CAD plus HST, confirmed upfront before work begins.
+> Studio auto detailing, paint protection film (PPF), ceramic coating, paint correction and window tint in a heated indoor bay in Burlington, Ontario, Canada. Rated ${reviews.rating.toFixed(1)}/5 from ${reviews.count} Google reviews. All prices in CAD plus HST, confirmed upfront before work begins.
 
 ## Contact
 - Address: ${SITE.address.full} (${SITE.address.landmark})
@@ -27,6 +28,8 @@ export async function GET() {
 - Payment: ${SITE.paymentMethods.join(", ")}
 - Service area (${SITE.serviceRadiusKm} km radius): ${SITE.serviceArea.join(", ")}
 - Main website: ${SITE.mainSiteUrl}
+- Google reviews: ${reviews.mapsUrl}
+- Leave a review: ${SITE.writeReviewUrl}
 
 ## Pages
 - [Home: choose a service](${SITE.url}/)

@@ -1,17 +1,19 @@
 import { Suspense } from "react";
 import { AnalyticsScripts, GtmNoScript } from "@/components/analytics";
 import { AttributionCapture } from "@/components/attribution-capture";
+import { ElfsightReviewsBadge } from "@/components/elfsight-reviews-badge";
 import { FloatingWhatsApp, MobileStickyBar } from "@/components/contact-bars";
 import { JsonLd } from "@/components/json-ld";
 import { PromoBanner } from "@/components/promo-banner";
 import { SiteFooterContent } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { getGoogleReviews } from "@/lib/google-reviews";
 import { getSiteData } from "@/lib/pricing";
 import { businessSchema } from "@/lib/schema";
 
 /** Shared shell for the three public paid-ad routes. */
 export default async function FunnelLayout({ children }: LayoutProps<"/">) {
-  const { services, promo } = await getSiteData();
+  const [{ services, promo }, reviews] = await Promise.all([getSiteData(), getGoogleReviews()]);
 
   return (
     <>
@@ -40,9 +42,10 @@ export default async function FunnelLayout({ children }: LayoutProps<"/">) {
         <SiteFooterContent />
         <MobileStickyBar />
         <FloatingWhatsApp />
+        <ElfsightReviewsBadge />
       </footer>
 
-      <JsonLd data={businessSchema(services)} />
+      <JsonLd data={businessSchema(services, reviews)} />
       <AnalyticsScripts />
       <Suspense fallback={null}>
         <AttributionCapture />

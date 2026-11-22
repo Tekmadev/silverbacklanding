@@ -1,10 +1,11 @@
 import { HERO_INTERIOR, HERO_PAINT } from "@/config/media";
 import { SITE } from "@/config/site";
 import type { FaqItem } from "@/config/faq";
+import type { ReviewData } from "./google-reviews";
 import type { ServicePricing } from "./types";
 
 /** AutomotiveBusiness + live OfferCatalog (prices straight from the DB). */
-export function businessSchema(services: ServicePricing[]) {
+export function businessSchema(services: ServicePricing[], reviews: ReviewData) {
   const active = services.filter((s) => s.is_active);
   const prices = active.map((s) => s.price_cad).filter((p): p is number => p !== null);
 
@@ -45,8 +46,8 @@ export function businessSchema(services: ServicePricing[]) {
     })),
     aggregateRating: {
       "@type": "AggregateRating",
-      ratingValue: SITE.rating.value.toFixed(1),
-      reviewCount: SITE.rating.count,
+      ratingValue: reviews.rating.toFixed(1),
+      reviewCount: reviews.count,
       bestRating: "5",
       worstRating: "1",
     },

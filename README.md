@@ -7,7 +7,7 @@
 | `/` | Funnel selector: Winter Interior vs. PPF/Ceramic/Tint, plus the 3-tap quote widget |
 | `/winter-interior` | Mid-ticket ad landing page ($279–$499) |
 | `/ppf-ceramic` | High-ticket ad landing page ($349–$2,499+) |
-| `/owner/prices?key=…` | Private price & promo editor (noindex, key-checked server-side) |
+| `/owner/prices?key=…` | Private editor for prices, promo banner and Google rating/review count (noindex, key-checked server-side) |
 | `/api/lead` · `/api/track` · `/api/owner/pricing` | Lead capture, click beacons, owner saves |
 | `/llms.txt` · `/sitemap.xml` · `/robots.txt` | AEO/SEO (llms.txt is generated from live prices) |
 
@@ -22,7 +22,7 @@ It is idempotent: re-running never overwrites prices the owner has edited.
 cp .env.example .env.local
 ```
 
-Fill the same 10 keys in Vercel → Project → Settings → Environment Variables.
+Fill the same 12 keys in Vercel → Project → Settings → Environment Variables.
 Every key is optional for `npm run build`: without Supabase the site serves
 `src/config/pricing-fallback.ts`, and any tracking tag without an ID is skipped.
 
@@ -58,8 +58,25 @@ is set, `/api/lead` also sends a server-side `Lead` with the same `event_id`, so
 
 - **Logo:** put the file in `public/images/` and set `LOGO` in `src/config/media.ts`.
 - **Before/after slider:** add real same-angle photo pairs to `BEFORE_AFTER_SETS`. The section stays hidden until then.
-- **Review quotes:** paste verbatim Google reviews into `REVIEWS`. Until then the 5.0★ / 44 aggregate cards show.
-- **Google review link:** replace `googleReviewsUrl` in `src/config/site.ts` with the exact GBP share link.
+- **Google reviews are live:** set `GOOGLE_PLACES_API_KEY` and the rating, review count and Google's 5 most relevant
+  reviews refresh about once an hour (header, hero, reviews section, JSON-LD, page descriptions, llms.txt).
+  Without the key, the fallback numbers in `src/config/site.ts` show. The "Leave a Google review" button uses `writeReviewUrl`.
+
+## Google rating and review count
+
+Change both in `/owner/prices` → **Google reviews** → **Save & publish**. The header, hero, reviews
+section, JSON-LD, page descriptions and `llms.txt` all update on the next page load, with no redeploy.
+Once the Places API key below is set, live Google numbers replace them automatically.
+
+## Live Google reviews setup (about 5 minutes)
+
+1. console.cloud.google.com → create or pick a project → make sure billing is on (usage stays inside the free tier).
+2. APIs & Services → Library → enable **Places API (New)**.
+3. Credentials → Create credentials → API key → Edit → API restrictions → **Places API (New)** only.
+4. Add it in Vercel as `GOOGLE_PLACES_API_KEY` (Production + Preview) and redeploy.
+
+Google's rules this follows: nothing is stored in the database, each review shows the author's avatar, name and
+profile link, every review links to Google Maps, and the section notes the ordering and credits "Google Maps".
 
 ## Implementation notes
 

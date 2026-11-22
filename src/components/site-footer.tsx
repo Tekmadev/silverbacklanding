@@ -8,7 +8,7 @@ export function SiteFooterContent() {
     <div className="border-t border-line bg-obsidian">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 md:grid-cols-3 md:px-6">
         <div className="space-y-4">
-          <Logo tone="light" />
+          <Logo tone="light" placement="footer" />
           <p className="max-w-xs text-sm leading-relaxed text-mist">
             Studio-grade detailing, paint protection film, ceramic coating and window tint in a
             heated indoor bay. Prices in CAD + HST, confirmed before work begins.

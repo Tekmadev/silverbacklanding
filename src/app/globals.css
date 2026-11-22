@@ -116,3 +116,21 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/*
+ * Elfsight Google Reviews badge + popup. Elfsight renders both into a portal at the end of
+ * <body> as full-screen fixed layers inside a shadow root, which page CSS cannot style.
+ * On phones, making the portal a fixed, transformed box that stops above the Call / WhatsApp
+ * bar turns it into the containing block for those layers, so the badge and popup never cover
+ * the bar. It ignores taps itself; Elfsight re-enables them on the badge and popup.
+ */
+@media (width < 48rem) {
+  /* Elfsight resets this element with `all: initial !important`, hence the doubled class and !important. */
+  .es-portal-root.es-portal-root[class*="eapps-google-reviews-"] {
+    position: fixed !important;
+    inset: 0 0 calc(4.375rem + env(safe-area-inset-bottom)) 0 !important;
+    z-index: 40 !important;
+    transform: translateZ(0) !important;
+    pointer-events: none !important;
+  }
+}

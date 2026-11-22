@@ -29,7 +29,11 @@ export const SITE = {
   /** schema.org openingHoursSpecification: by appointment, Mon–Sat. */
   openingDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
 
-  rating: { value: 5.0, count: 44 },
+  /**
+   * Last-resort backup only. Change the rating and count in /owner/prices (no code or
+   * redeploy needed). Live Google numbers replace both once GOOGLE_PLACES_API_KEY is set.
+   */
+  rating: { value: 5.0, count: 45 },
 
   serviceArea: [
     "Burlington",
@@ -45,10 +49,11 @@ export const SITE = {
 
   paymentMethods: ["Cash", "Credit Card", "Interac e-Transfer"],
 
-  /**
-   * TODO(owner): replace with the exact Google Business Profile review link
-   * (Google Business → "Ask for reviews" → copy link) for a direct hit.
-   */
+  /** "Leave a review" link from Google Business Profile → Ask for reviews. */
+  writeReviewUrl: "https://g.page/r/CcvHt6Yg09rgEAE/review",
+  /** Elfsight "Google Reviews" floating badge (live rating, managed at elfsight.com). Empty string hides it. */
+  elfsightReviewsWidgetId: "a35823f0-1778-4670-a181-7c221482a969",
+  /** Fallback "read reviews" link; the live Google Maps URL replaces it once the API key is set. */
   googleReviewsUrl:
     "https://www.google.com/maps/search/?api=1&query=Silverback+Auto+Detailing+1254+Plains+Rd+E+Burlington+ON",
   directionsUrl:

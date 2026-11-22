@@ -1,5 +1,7 @@
+import Image from "next/image";
 import type { ReactNode } from "react";
-import { BEFORE_AFTER_SETS, REVIEWS } from "@/config/media";
+import { BEFORE_AFTER_SETS } from "@/config/media";
+import { getGoogleReviews } from "@/lib/google-reviews";
 import { SITE, TEL_HREF, WHATSAPP_DIRECT_MESSAGE, whatsappHref } from "@/config/site";
 import type { FaqItem } from "@/config/faq";
 import {
@@ -65,8 +67,22 @@ export function ProcessStrip() {
   );
 }
 
-export function ReviewsSection() {
-  const rating = SITE.rating.value.toFixed(1);
+function Stars({ value, size = 16 }: { value: number; size?: number }) {
+  const filled = Math.round(value);
+  return (
+    <span className="flex gap-0.5" role="img" aria-label={`${value.toFixed(1)} out of 5 stars`}>
+      {Array.from({ length: 5 }, (_, i) => (
+        <StarIcon key={i} width={size} height={size} className={i < filled ? "text-paper" : "text-steel"} />
+      ))}
+    </span>
+  );
+}
+
+/** Live Google rating + up to 5 reviews (Places API), with the attribution Google requires. */
+export async function ReviewsSection() {
+  const { rating, count, reviews, mapsUrl } = await getGoogleReviews();
+  const ratingText = rating.toFixed(1);
+
   return (
     <section aria-labelledby="reviews-heading" className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
       <SectionHeading
@@ -74,8 +90,8 @@ export function ReviewsSection() {
         eyebrow="Google reviews"
         title={
           <>
-            {rating} stars.
-            <br className="sm:hidden" /> {SITE.rating.count} reviews.
+            {ratingText} stars.
+            <br className="sm:hidden" /> {count} reviews.
           </>
         }
         intro="Don't take our word for it. Read every review on our Google Business Profile before you book."
@@ -83,53 +99,103 @@ export function ReviewsSection() {
 
       <ul className="mt-10 grid gap-4 md:grid-cols-3">
         <li className="rounded-2xl border border-line bg-onyx p-6">
-          <div className="flex gap-1 text-paper" aria-hidden="true">
-            {Array.from({ length: 5 }, (_, i) => (
-              <StarIcon key={i} width={20} height={20} />
-            ))}
-          </div>
-          <p className="display tabular mt-4 text-6xl text-paper">{rating}</p>
+          <Stars value={rating} size={20} />
+          <p className="display tabular mt-4 text-6xl text-paper">{ratingText}</p>
           <p className="mt-1 text-sm text-mist">Average Google rating out of 5</p>
         </li>
         <li className="rounded-2xl border border-line bg-onyx p-6">
-          <p className="display tabular text-6xl text-paper">{SITE.rating.count}</p>
+          <p className="display tabular text-6xl text-paper">{count}</p>
           <p className="mt-1 text-sm text-mist">Reviews on our Google Business Profile</p>
-          <p className="mt-6 flex items-center gap-2 text-sm text-silver">
-            <ShieldIcon width={18} height={18} /> Posted publicly on Google
-          </p>
+          <a
+            href={mapsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-6 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-paper underline decoration-steel underline-offset-4 hover:decoration-paper"
+          >
+            <ShieldIcon width={18} height={18} /> Read all {count} on Google<span className="sr-only"> (opens Google Maps)</span>
+          </a>
         </li>
-        <li className="flex flex-col justify-between rounded-2xl border border-paper bg-paper p-6 text-ink">
+        <li className="on-light flex flex-col justify-between rounded-2xl border border-paper bg-paper p-6 text-ink">
           <p className="text-lg leading-snug font-semibold">
-            See what clients say about the finish, the pricing and the turnaround.
+            Had your vehicle done at Silverback? A quick review helps other drivers find us.
           </p>
           <a
-            href={SITE.googleReviewsUrl}
+            href={SITE.writeReviewUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="btn mt-6 bg-ink text-paper hover:bg-graphite"
           >
-            Read all {SITE.rating.count} reviews<span className="sr-only"> on Google (opens Google)</span>
+            <StarIcon width={16} height={16} /> Leave a Google review<span className="sr-only"> (opens Google)</span>
           </a>
         </li>
       </ul>
 
-      {REVIEWS.length > 0 && (
-        <ul className="mt-6 grid gap-4 md:grid-cols-3">
-          {REVIEWS.map((review) => (
-            <li key={`${review.name}-${review.text.slice(0, 12)}`} className="rounded-2xl border border-line bg-onyx p-6">
-              <div className="flex gap-0.5 text-paper" aria-label="5 out of 5 stars" role="img">
-                {Array.from({ length: 5 }, (_, i) => (
-                  <StarIcon key={i} width={16} height={16} />
-                ))}
-              </div>
-              <blockquote className="mt-4 text-sm leading-relaxed text-silver">“{review.text}”</blockquote>
-              <p className="mt-4 text-sm font-semibold text-paper">
-                {review.name}
-                {review.when && <span className="font-normal text-mist"> · {review.when}</span>}
-              </p>
-            </li>
-          ))}
-        </ul>
+      {reviews.length > 0 && (
+        <>
+          <ul className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {reviews.map((review) => (
+              <li key={`${review.authorName}-${review.when}`} className="flex flex-col rounded-2xl border border-line bg-onyx p-6">
+                <div className="flex items-center gap-3">
+                  {review.authorPhoto ? (
+                    <Image
+                      src={review.authorPhoto}
+                      alt=""
+                      width={40}
+                      height={40}
+                      unoptimized
+                      // Anonymous CORS: no cookies sent or set by Google's avatar host.
+                      crossOrigin="anonymous"
+                      referrerPolicy="no-referrer"
+                      className="size-10 shrink-0 rounded-full bg-graphite"
+                    />
+                  ) : (
+                    <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-graphite text-sm font-semibold text-paper">
+                      {review.authorName.charAt(0)}
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    {review.authorUrl ? (
+                      <a
+                        href={review.authorUrl}
+                        target="_blank"
+                        rel="noopener noreferrer nofollow"
+                        className="block truncate text-sm font-semibold text-paper hover:underline"
+                      >
+                        {review.authorName}
+                      </a>
+                    ) : (
+                      <p className="truncate text-sm font-semibold text-paper">{review.authorName}</p>
+                    )}
+                    <div className="mt-0.5 flex items-center gap-2">
+                      <Stars value={review.rating} size={13} />
+                      {review.when && <span className="text-xs text-mist">{review.when}</span>}
+                    </div>
+                  </div>
+                </div>
+                <blockquote className="mt-4 line-clamp-6 text-sm leading-relaxed text-silver">{review.text}</blockquote>
+                <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 pt-4 text-xs text-mist">
+                  {review.translated && <span>Translated by Google</span>}
+                  {review.url && (
+                    <a
+                      href={review.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex min-h-11 items-center font-semibold text-silver underline underline-offset-4 hover:text-paper"
+                    >
+                      Read on Google<span className="sr-only"> (review by {review.authorName}, opens Google Maps)</span>
+                    </a>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-4 text-xs text-mist">
+            Showing Google&apos;s most relevant reviews, unedited. Source:{" "}
+            <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="whitespace-nowrap underline underline-offset-4" translate="no">
+              Google Maps
+            </a>
+          </p>
+        </>
       )}
     </section>
   );

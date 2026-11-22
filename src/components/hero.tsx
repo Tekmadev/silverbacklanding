@@ -2,13 +2,14 @@ import { getImageProps } from "next/image";
 import type { ReactNode } from "react";
 import type { SiteImage } from "@/config/media";
 import { SITE, TEL_HREF } from "@/config/site";
+import { getGoogleReviews } from "@/lib/google-reviews";
 import { PhoneIcon, StarIcon } from "./icons";
 import { TrackedLink } from "./tracked-link";
 
 /** 1×1 transparent GIF: what phones/tablets get instead of the hero photo. */
 const BLANK_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
-export function Hero({
+export async function Hero({
   image,
   eyebrow,
   title,
@@ -42,6 +43,8 @@ export function Hero({
     fetchPriority: "high",
   });
 
+  const reviews = await getGoogleReviews();
+
   return (
     <section aria-labelledby="hero-heading" className="relative isolate overflow-hidden bg-obsidian">
       <picture className="absolute inset-0 -z-20 hidden lg:block">
@@ -71,7 +74,7 @@ export function Hero({
 
           <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-silver">
             <a
-              href={SITE.googleReviewsUrl}
+              href={reviews.mapsUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="flex min-h-11 items-center gap-2 hover:text-paper"
@@ -81,9 +84,9 @@ export function Hero({
                   <StarIcon key={i} width={15} height={15} />
                 ))}
               </span>
-              <span className="font-semibold text-paper">{SITE.rating.value.toFixed(1)}</span>
+              <span className="font-semibold text-paper">{reviews.rating.toFixed(1)}</span>
               <span className="underline decoration-steel underline-offset-4">
-                {SITE.rating.count} Google Reviews<span className="sr-only"> (opens Google)</span>
+                {reviews.count} Google Reviews<span className="sr-only"> (opens Google)</span>
               </span>
             </a>
             <TrackedLink

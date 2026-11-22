@@ -1,8 +1,16 @@
 import { revalidatePath, revalidateTag } from "next/cache";
+import { SITE } from "@/config/site";
+import { REVIEWS_CACHE_TAG } from "@/lib/google-reviews";
 import { PRICING_CACHE_TAG } from "@/lib/pricing";
 import { normalizeRow } from "@/lib/pricing-utils";
 import { getAdminClient } from "@/lib/supabase";
 import { checkOwnerKey } from "@/lib/server/owner-auth";
+import {
+  parseRating,
+  parseReviewCount,
+  RATING_SETTING_KEY,
+  REVIEW_COUNT_SETTING_KEY,
+} from "@/lib/review-settings";
 import { isPromoKey, type ServicePricing } from "@/lib/types";
 
 const noStore = { "cache-control": "no-store", "x-robots-tag": "noindex, nofollow" };
@@ -26,22 +34,32 @@ async function authorize(request: Request) {
   return { client };
 }
 
-/** Owner editor: load every pricing row (incl. inactive) + the active promo. */
+/** Owner editor: load every pricing row (incl. inactive), the active promo and the Google rating. */
 export async function GET(request: Request) {
   const { client, response } = await authorize(request);
   if (!client) return response;
 
-  const [pricing, promo] = await Promise.all([
+  const [pricing, settings] = await Promise.all([
     client.from("service_pricing").select("*").order("sort_order", { ascending: true }),
-    client.from("site_settings").select("value").eq("key", "active_promo").maybeSingle(),
+    client
+      .from("site_settings")
+      .select("key,value")
+      .in("key", ["active_promo", RATING_SETTING_KEY, REVIEW_COUNT_SETTING_KEY]),
   ]);
 
   if (pricing.error) return json({ error: pricing.error.message }, 502);
+  if (settings.error) return json({ error: settings.error.message }, 502);
 
+  const byKey = new Map((settings.data ?? []).map((row) => [row.key as string, row.value as unknown]));
+  const promo = byKey.get("active_promo");
   const services = (pricing.data ?? []).map(normalizeRow).filter((r): r is ServicePricing => r !== null);
   return json({
     services,
-    promo: isPromoKey(promo.data?.value) ? promo.data.value : "none",
+    promo: isPromoKey(promo) ? promo : "none",
+    rating: parseRating(byKey.get(RATING_SETTING_KEY)) ?? SITE.rating.value,
+    reviewCount: parseReviewCount(byKey.get(REVIEW_COUNT_SETTING_KEY)) ?? SITE.rating.count,
+    /** When true, live Google numbers are shown and these are only a backup. */
+    googleLive: Boolean(process.env.GOOGLE_PLACES_API_KEY?.trim()),
   });
 }
 
@@ -83,7 +101,14 @@ function parseRow(raw: unknown): RowUpdate | null {
   };
 }
 
-/** Owner editor: save prices + promo, then refresh every cached page instantly. */
+/** Expire cached prices and rating immediately and re-render every page on next visit. */
+function refreshSite() {
+  revalidateTag(PRICING_CACHE_TAG, { expire: 0 });
+  revalidateTag(REVIEWS_CACHE_TAG, { expire: 0 });
+  revalidatePath("/", "layout");
+}
+
+/** Owner editor: save prices, promo and Google rating, then refresh every cached page instantly. */
 export async function POST(request: Request) {
   const { client, response } = await authorize(request);
   if (!client) return response;
@@ -95,9 +120,25 @@ export async function POST(request: Request) {
     return json({ error: "Invalid JSON." }, 400);
   }
 
-  const { services, promo } = (body ?? {}) as { services?: unknown; promo?: unknown };
+  const { services, promo, rating: rawRating, reviewCount: rawCount } = (body ?? {}) as {
+    services?: unknown;
+    promo?: unknown;
+    rating?: unknown;
+    reviewCount?: unknown;
+  };
   if (!Array.isArray(services) || services.length > 100 || !isPromoKey(promo)) {
     return json({ error: "Expected { services: [...], promo: 'black_friday' | 'winter' | 'none' }." }, 400);
+  }
+
+  // Rating and count are optional so older editor tabs can still save prices.
+  const hasRating = rawRating !== undefined || rawCount !== undefined;
+  const rating = parseRating(rawRating);
+  const reviewCount = parseReviewCount(rawCount);
+  if (hasRating && rating === null) {
+    return json({ error: "Google rating must be a number from 1.0 to 5.0, e.g. 4.9." }, 422);
+  }
+  if (hasRating && reviewCount === null) {
+    return json({ error: "Number of reviews must be a whole number of at least 1, e.g. 45." }, 422);
   }
 
   const rows: RowUpdate[] = [];
@@ -116,22 +157,30 @@ export async function POST(request: Request) {
   const failed = results.find((r) => r.error);
   if (failed?.error) {
     console.error("[api/owner/pricing] price update failed:", failed.error.message);
+    refreshSite(); // other rows may have saved; don't leave the site showing stale prices
     return json({ error: failed.error.message }, 502);
   }
 
-  const promoRes = await client
-    .from("site_settings")
-    .upsert({ key: "active_promo", value: promo }, { onConflict: "key" });
-  if (promoRes.error) {
-    console.error("[api/owner/pricing] promo update failed:", promoRes.error.message);
-    return json({ error: promoRes.error.message }, 502);
+  const settingRows: { key: string; value: string }[] = [{ key: "active_promo", value: promo }];
+  if (hasRating && rating !== null && reviewCount !== null) {
+    settingRows.push(
+      { key: RATING_SETTING_KEY, value: rating.toFixed(1) },
+      { key: REVIEW_COUNT_SETTING_KEY, value: String(reviewCount) },
+    );
+  }
+  const settingsRes = await client.from("site_settings").upsert(settingRows, { onConflict: "key" });
+  if (settingsRes.error) {
+    console.error("[api/owner/pricing] settings update failed:", settingsRes.error.message);
+    refreshSite(); // prices already saved above
+    return json({ error: settingsRes.error.message }, 502);
   }
 
-  console.info(`[api/owner/pricing] saved ${rows.length} prices, promo=${promo}`);
+  console.info(
+    `[api/owner/pricing] saved ${rows.length} prices, promo=${promo}` +
+      (hasRating ? `, rating=${rating} (${reviewCount} reviews)` : ""),
+  );
 
-  // Expire the cached pricing immediately and re-render every page on next visit.
-  revalidateTag(PRICING_CACHE_TAG, { expire: 0 });
-  revalidatePath("/", "layout");
+  refreshSite();
 
   return json({ ok: true, savedAt: new Date().toISOString() });
 }

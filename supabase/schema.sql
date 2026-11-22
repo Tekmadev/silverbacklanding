@@ -89,8 +89,12 @@ create trigger site_settings_set_updated_at
   before update on public.site_settings
   for each row execute function public.set_updated_at();
 
+-- google_rating / google_review_count: edited in /owner/prices, shown site-wide
+-- (live Google numbers take over once GOOGLE_PLACES_API_KEY is set).
 insert into public.site_settings (key, value)
-values ('active_promo', 'black_friday')
+values ('active_promo', 'black_friday'),
+       ('google_rating', '5.0'),
+       ('google_review_count', '45')
 on conflict (key) do nothing;
 
 -- -----------------------------------------------------------------------------
