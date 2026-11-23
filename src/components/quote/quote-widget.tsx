@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { SELECT_SERVICE_EVENT } from "@/config/quote";
+import { SELECT_SERVICE_EVENT, type SelectServiceDetail } from "@/config/quote";
 import { SITE, TEL_HREF, whatsappHref } from "@/config/site";
 import { uuid } from "@/lib/attribution";
 import { toE164 } from "@/lib/phone";
@@ -34,6 +34,12 @@ interface QuoteWidgetProps {
 
 type Errors = Partial<Record<"service" | "vehicle" | "phone", string>>;
 
+/** Sum of the known prices, or null when none of the picked services has a fixed price. */
+function totalValue(options: QuoteOption[]): number | null {
+  const prices = options.map((o) => o.valueCad).filter((v): v is number => v !== null);
+  return prices.length ? prices.reduce((a, b) => a + b, 0) : null;
+}
+
 export function QuoteWidget({ chips, extras, defaultSlug, headingLevel = "h2" }: QuoteWidgetProps) {
   const Heading = headingLevel;
   const formId = useId();
@@ -41,23 +47,40 @@ export function QuoteWidget({ chips, extras, defaultSlug, headingLevel = "h2" }:
   const phoneRef = useRef<HTMLInputElement>(null);
   const chipGroupRef = useRef<HTMLFieldSetElement>(null);
 
-  const [selected, setSelected] = useState<string | undefined>(defaultSlug);
+  const [selected, setSelected] = useState<string[]>(defaultSlug ? [defaultSlug] : []);
+  // False until the visitor changes the selection themselves. Until then the page's
+  // pre-ticked default is only a suggestion, and a "Get this price" tap replaces it.
+  const touchedRef = useRef(false);
+  // Non-chip services stay visible once shown, so unticking one never removes its checkbox.
+  const [revealed, setRevealed] = useState<string[]>(defaultSlug ? [defaultSlug] : []);
   const [vehicle, setVehicle] = useState("");
   const [phone, setPhone] = useState("");
   const [errors, setErrors] = useState<Errors>({});
   const [sentUrl, setSentUrl] = useState<string | null>(null);
 
   const allOptions = [...chips, ...extras];
-  const selectedOption = allOptions.find((o) => o.slug === selected);
-  // If a "Get this quote" button picked a non-chip service, show it as the first chip.
-  const visibleChips =
-    selectedOption && !chips.some((c) => c.slug === selectedOption.slug) ? [selectedOption, ...chips] : chips;
+  // Keep the order they appear on screen so the WhatsApp message reads naturally.
+  const selectedOptions = allOptions.filter((o) => selected.includes(o.slug));
+  // Services shown via a "Get this quote" button that aren't default chips show up first.
+  const shownExtras = extras.filter((o) => revealed.includes(o.slug));
+  const visibleChips = [...shownExtras, ...chips];
+
+  function toggle(slug: string) {
+    touchedRef.current = true;
+    setSelected((current) => (current.includes(slug) ? current.filter((s) => s !== slug) : [...current, slug]));
+    setErrors((e) => ({ ...e, service: undefined }));
+  }
 
   useEffect(() => {
     function onSelect(event: Event) {
-      const slug = (event as CustomEvent<string>).detail;
-      if (!allOptionsHas(slug)) return;
-      setSelected(slug);
+      const detail = (event as CustomEvent<SelectServiceDetail | string>).detail;
+      const { slug, add } = typeof detail === "string" ? { slug: detail, add: false } : detail;
+      if (!slug || !allOptionsHas(slug)) return;
+      const replaceDefault = !touchedRef.current && !add;
+      touchedRef.current = true;
+      // First tap replaces the untouched default; later taps (and upsells) add to it.
+      setSelected((current) => (replaceDefault ? [slug] : current.includes(slug) ? current : [...current, slug]));
+      setRevealed((current) => (current.includes(slug) ? current : [...current, slug]));
       setSentUrl(null);
       setErrors((e) => ({ ...e, service: undefined }));
       window.setTimeout(() => vehicleRef.current?.focus({ preventScroll: true }), 450);
@@ -71,7 +94,7 @@ export function QuoteWidget({ chips, extras, defaultSlug, headingLevel = "h2" }:
 
   function validate(): { errors: Errors; phoneE164: string | null } {
     const next: Errors = {};
-    if (!selectedOption) next.service = "Tap the service you want priced.";
+    if (!selectedOptions.length) next.service = "Tap at least one service you want priced.";
     if (vehicle.trim().length < 2) next.vehicle = "Add your vehicle, e.g. 2024 BMW X5.";
     const phoneE164 = toE164(phone);
     if (!phoneE164) next.phone = "Enter a 10-digit phone number, e.g. 905-555-0123.";
@@ -83,7 +106,7 @@ export function QuoteWidget({ chips, extras, defaultSlug, headingLevel = "h2" }:
     const { errors: found, phoneE164 } = validate();
     setErrors(found);
 
-    if (!selectedOption || !phoneE164 || Object.keys(found).length) {
+    if (!selectedOptions.length || !phoneE164 || Object.keys(found).length) {
       if (found.service) chipGroupRef.current?.querySelector<HTMLInputElement>("input")?.focus();
       else if (found.vehicle) vehicleRef.current?.focus();
       else if (found.phone) phoneRef.current?.focus();
@@ -95,8 +118,7 @@ export function QuoteWidget({ chips, extras, defaultSlug, headingLevel = "h2" }:
     const cleanVehicle = vehicle.trim().slice(0, 80);
     const url = whatsappHref(
       buildQuoteMessage({
-        serviceName: selectedOption.name,
-        displayPrice: selectedOption.displayPrice,
+        services: selectedOptions.map((o) => ({ name: o.name, displayPrice: o.displayPrice })),
         vehicle: cleanVehicle,
         phoneE164,
         eventId,
@@ -106,9 +128,9 @@ export function QuoteWidget({ chips, extras, defaultSlug, headingLevel = "h2" }:
     // 1–2. Tag + log the lead (fire-and-forget, keepalive).
     trackLead({
       eventId,
-      serviceSlug: selectedOption.slug,
-      serviceName: selectedOption.name,
-      valueCad: selectedOption.valueCad,
+      serviceSlugs: selectedOptions.map((o) => o.slug),
+      serviceName: selectedOptions.map((o) => o.name).join(" + "),
+      valueCad: totalValue(selectedOptions),
       vehicle: cleanVehicle,
       phoneE164,
       website: honeypot,
@@ -156,7 +178,7 @@ export function QuoteWidget({ chips, extras, defaultSlug, headingLevel = "h2" }:
             onClick={() => setSentUrl(null)}
             className="min-h-11 text-sm font-medium text-mist underline underline-offset-4 hover:text-paper"
           >
-            Quote another service
+            Change my services
           </button>
         </div>
       ) : (
@@ -177,11 +199,14 @@ export function QuoteWidget({ chips, extras, defaultSlug, headingLevel = "h2" }:
           >
             <legend className="eyebrow mb-3 flex items-center gap-2 text-silver">
               <span className="flex size-6 items-center justify-center rounded-full bg-paper text-[0.7rem] text-ink">1</span>
-              Pick a service
+              Pick your services
             </legend>
+            <p className="-mt-1 mb-3 text-sm text-mist" aria-live="polite">
+              {selected.length > 1 ? `${selected.length} selected. Add as many as you like.` : "Choose one or more."}
+            </p>
             <div className="flex flex-wrap gap-2">
               {visibleChips.map((option) => {
-                const checked = option.slug === selected;
+                const checked = selected.includes(option.slug);
                 return (
                   <label
                     key={option.slug}
@@ -192,16 +217,14 @@ export function QuoteWidget({ chips, extras, defaultSlug, headingLevel = "h2" }:
                     }`}
                   >
                     <input
-                      type="radio"
+                      type="checkbox"
                       name="service"
                       value={option.slug}
                       checked={checked}
-                      onChange={() => {
-                        setSelected(option.slug);
-                        setErrors((e) => ({ ...e, service: undefined }));
-                      }}
+                      onChange={() => toggle(option.slug)}
                       className="sr-only"
                     />
+                    {checked && <CheckIcon width={14} height={14} className="mr-1.5 shrink-0" aria-hidden="true" />}
                     {option.label}
                     {option.priceText && (
                       <span className={`tabular ml-1.5 ${checked ? "text-slate" : "text-mist"}`}>({option.priceText})</span>

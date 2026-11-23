@@ -126,7 +126,7 @@ export default async function WinterInteriorPage() {
                       {tint.display_price} · side & rear windows, same-day
                     </p>
                   </div>
-                  <QuoteButton slug={tint.slug} className="btn shrink-0 border border-steel text-paper hover:border-paper">
+                  <QuoteButton slug={tint.slug} add className="btn shrink-0 border border-steel text-paper hover:border-paper">
                     Add tint <ArrowRightIcon width={16} height={16} />
                   </QuoteButton>
                 </li>

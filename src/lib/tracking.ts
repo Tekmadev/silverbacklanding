@@ -95,8 +95,11 @@ export function trackDirectionsClick(buttonLocation: string) {
 
 export interface LeadInput {
   eventId: string;
-  serviceSlug: string;
+  /** Every service picked in the quote widget (one or more). */
+  serviceSlugs: string[];
+  /** Human-readable names joined with " + ", used as the ad conversion label. */
   serviceName: string;
+  /** Sum of the picked services' prices (null when none has a fixed price). */
   valueCad: number | null;
   vehicle: string;
   /** E.164, e.g. +19055196290 */
@@ -136,7 +139,7 @@ export function trackLead(lead: LeadInput) {
       keepalive: true,
       body: JSON.stringify({
         event_id: lead.eventId,
-        service: lead.serviceSlug,
+        services: lead.serviceSlugs,
         vehicle: lead.vehicle,
         phone: lead.phoneE164,
         website: lead.website ?? "",

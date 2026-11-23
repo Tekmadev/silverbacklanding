@@ -7,7 +7,48 @@ import { getAdminClient } from "@/lib/supabase";
 import { sendMetaLead } from "@/lib/server/meta-capi";
 import { attributionColumns, clientIp, isBot, readJson, str } from "@/lib/server/request";
 import { FLEET_SLUG } from "@/config/quote";
+import type { ServicePricing } from "@/lib/types";
 import { buildQuoteMessage } from "@/lib/whatsapp-message";
+
+const MAX_SERVICES = 20;
+
+interface PickedService {
+  slug: string;
+  name: string;
+  displayPrice: string | null;
+  priceCad: number | null;
+}
+
+/**
+ * Resolves the picked slugs against our own pricing table (never trust client prices).
+ * Dedupes, keeps the visitor's order, and reports any slug we don't recognise.
+ */
+function resolveServices(all: ServicePricing[], slugs: string[]) {
+  const picked: PickedService[] = [];
+  const unknown: string[] = [];
+  for (const slug of [...new Set(slugs)].slice(0, MAX_SERVICES)) {
+    if (slug === FLEET_SLUG) {
+      picked.push({ slug, name: "Fleet / B2B", displayPrice: null, priceCad: null });
+      continue;
+    }
+    const service = findService(all, slug);
+    if (service) {
+      picked.push({ slug, name: service.name, displayPrice: service.display_price, priceCad: service.price_cad });
+    } else {
+      unknown.push(slug);
+    }
+  }
+  const prices = picked.map((p) => p.priceCad).filter((v): v is number => v !== null);
+  return {
+    picked,
+    unknown,
+    /** Comma-separated slugs for leads.service_selected. */
+    slugList: picked.map((p) => p.slug).join(","),
+    /** Sum of known prices, or null when none has a fixed price. */
+    valueCad: prices.length ? prices.reduce((a, b) => a + b, 0) : null,
+    name: picked.map((p) => p.name).join(" + "),
+  };
+}
 
 /**
  * No-JS / pre-hydration fallback: a native form POST lands here. Record what we
@@ -22,15 +63,17 @@ async function handleFormPost(request: NextRequest) {
   }
   const get = (key: string, max = 80) => str(form?.get(key), max);
 
-  const serviceSlug = get("service", 64);
+  // Checkboxes: one "service" entry per picked chip.
+  const serviceSlugs = (form?.getAll("service") ?? [])
+    .map((v) => str(v, 64))
+    .filter((v): v is string => Boolean(v));
   const vehicle = get("vehicle") ?? "";
   const rawPhone = get("phone", 20);
   const phone = rawPhone ? toE164(rawPhone) : null;
   const eventId = crypto.randomUUID();
 
   const { services } = await getSiteData();
-  const service = serviceSlug ? findService(services, serviceSlug) : undefined;
-  const serviceName = service?.name ?? (serviceSlug === FLEET_SLUG ? "Fleet / B2B" : "Detailing quote");
+  const resolved = resolveServices(services, serviceSlugs);
 
   let pagePath: string | null = null;
   try {
@@ -44,8 +87,8 @@ async function handleFormPost(request: NextRequest) {
     after(async () => {
       const { error } = await client.from("leads").insert({
         event_id: eventId,
-        service_selected: serviceSlug,
-        estimated_value_cad: service?.price_cad ?? null,
+        service_selected: resolved.slugList || null,
+        estimated_value_cad: resolved.valueCad,
         vehicle,
         phone,
         page_path: pagePath,
@@ -55,8 +98,7 @@ async function handleFormPost(request: NextRequest) {
   }
 
   const message = buildQuoteMessage({
-    serviceName,
-    displayPrice: service?.display_price ?? null,
+    services: resolved.picked,
     vehicle,
     phoneE164: phone,
     eventId,
@@ -81,22 +123,25 @@ export async function POST(request: NextRequest) {
   if (str(body.website)) return Response.json({ ok: true });
 
   const eventId = str(body.event_id, 64);
-  const serviceSlug = str(body.service, 64);
+  // `services` (array) from the multi-select widget; `service` (string) from older open tabs.
+  const serviceSlugs = (Array.isArray(body.services) ? body.services : [body.service])
+    .map((v) => str(v, 64))
+    .filter((v): v is string => Boolean(v));
   const vehicle = str(body.vehicle, 80);
   const phone = typeof body.phone === "string" ? toE164(body.phone) : null;
 
-  if (!eventId || !serviceSlug || !vehicle || !phone) {
+  if (!eventId || serviceSlugs.length === 0 || serviceSlugs.length > MAX_SERVICES || !vehicle || !phone) {
     return Response.json({ ok: false, error: "Missing or invalid fields." }, { status: 422 });
   }
 
   // Never trust a client-sent value. Price the lead from our own pricing table.
   const { services } = await getSiteData();
-  const service = findService(services, serviceSlug);
-  if (!service && serviceSlug !== FLEET_SLUG) {
+  const resolved = resolveServices(services, serviceSlugs);
+  if (resolved.unknown.length || resolved.picked.length === 0) {
     return Response.json({ ok: false, error: "Unknown service." }, { status: 422 });
   }
-  const valueCad = service?.price_cad ?? null;
-  const serviceName = service?.name ?? "Fleet / B2B";
+  const valueCad = resolved.valueCad;
+  const serviceName = resolved.name;
 
   const attribution = attributionColumns(body);
   const client = getAdminClient();
@@ -105,7 +150,7 @@ export async function POST(request: NextRequest) {
   if (client && !isBot(request)) {
     const { error } = await client.from("leads").insert({
       event_id: eventId,
-      service_selected: serviceSlug,
+      service_selected: resolved.slugList,
       estimated_value_cad: valueCad,
       vehicle,
       phone,

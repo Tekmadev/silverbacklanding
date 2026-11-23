@@ -114,7 +114,7 @@ export default async function HomePage() {
             id="quote-section-heading"
             eyebrow="Fastest way to a price"
             title="Know your number before you drive over"
-            intro="Tap a service, add your vehicle and number, and your quote request opens in WhatsApp with everything filled in."
+            intro="Tap one or more services, add your vehicle and number, and your quote request opens in WhatsApp with everything filled in."
           />
           <div id="quote" className="scroll-mt-24">
             <QuoteForm services={services} headingLevel="h3" />

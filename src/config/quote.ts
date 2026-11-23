@@ -20,5 +20,14 @@ export const QUOTE_CHIPS: QuoteChipConfig[] = [
   { slug: FLEET_SLUG, label: "Fleet / B2B" },
 ];
 
-/** Window event used by "Get this quote" buttons to preselect a chip. */
+/** Window event used by "Get this quote" buttons to select a chip. */
 export const SELECT_SERVICE_EVENT = "sb:select-service";
+
+/**
+ * SELECT_SERVICE_EVENT payload. `add: true` (upsells like "Add tint") always adds to the
+ * selection; otherwise the first button tap replaces the page's untouched default.
+ */
+export interface SelectServiceDetail {
+  slug: string;
+  add?: boolean;
+}
